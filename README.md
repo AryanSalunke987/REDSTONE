@@ -1,4 +1,4 @@
-# AI-Based Smart PPE Compliance Monitoring System
+# REDSTONE: An AI-Based Smart PPE Compliance Monitoring System
 
 An Industrial IoT system that uses **ESP32**, **RFID**, **YOLOv8**, **OpenCV**, **SQLite** and **Streamlit** to monitor Personal Protective Equipment (PPE) compliance in industrial environments.
 
