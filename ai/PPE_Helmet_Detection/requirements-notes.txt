@@ -1,0 +1,22 @@
+PPE Helmet Detection - Environment Notes
+==========================================
+
+Required packages (already installed in the existing environment):
+- Python 3.13.5
+- ultralytics 8.4.38
+- opencv-python 4.13.0.92
+- numpy 2.3.2
+- torch 2.10.0+cpu (CPU-only, no CUDA)
+
+Model source:
+- Repository: https://github.com/nosterdream/hard-hat-detection
+- Model file: last_hardhat_200_epochs.pt
+- Download: https://drive.google.com/drive/folders/1E6vjbpqiOCytXphIZB0OnvG45-WvTkH7?usp=sharing
+- Place in: PPE_Helmet_Detection/models/
+
+Important notes:
+- No additional packages need to be installed.
+- The model was trained with YOLOv8 and is compatible with Ultralytics 8.x.
+- CPU inference is used (device="cpu"). No GPU required.
+- The original repo also uses yolov8x.pt for person detection,
+  but our standalone test only uses the hardhat model.

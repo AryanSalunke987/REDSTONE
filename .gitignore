@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Model files (too large for GitHub)
+*.pt
+*.pth
+*.onnx
+*.tflite
+
+# Database files
+*.db
+
+# Backup files
+*.bak
+*.bak2
+*.bak_phase7
+*.bak_phase8
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

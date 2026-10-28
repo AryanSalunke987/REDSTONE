@@ -1,0 +1,146 @@
+PPE Helmet Detection - Test Results
+=====================================
+Date: 2026-09-30
+Tester: Aryan Salunke
+Project: AI-Based Smart PPE Compliance Monitoring System (Industrial IoT)
+
+Environment
+-----------
+OS:          Windows (laptop, built-in webcam)
+Python:      3.13.5
+Ultralytics: 8.4.38
+OpenCV:      4.13.0
+NumPy:       2.3.2
+PyTorch:     2.10.0+cpu
+CUDA:        Not available (CPU-only inference)
+GPU:         None (all inference on CPU)
+
+Models Used
+-----------
+1. Helmet model: last_hardhat_200_epochs.pt (130.4 MB)
+   - Source: https://github.com/nosterdream/hard-hat-detection
+   - Downloaded from: Google Drive (https://drive.google.com/drive/folders/1E6vjbpqiOCytXphIZB0OnvG45-WvTkH7)
+   - Architecture: YOLOv8 custom-trained (200 epochs)
+   - Classes: {0: 'helmet'} — single class, detects hard-hat objects
+   - Inference size: 320px (reduced from 640 for CPU speed)
+   - Confidence threshold: 0.45
+
+2. Face detector: OpenCV Haar cascade (built into OpenCV, no download)
+   - Primary: haarcascade_frontalface_alt2.xml (frontal faces)
+   - Fallback: haarcascade_profileface.xml (side/profile faces)
+   - CLAHE histogram equalization for improved low-light detection
+   - Parameters: scaleFactor=1.1, minNeighbors=3, minSize=(40,40)
+
+Also downloaded (for future use):
+   - yolov8x.pt (130.5 MB) — COCO person detection model
+   - yolov8n.pt (6.2 MB) — COCO nano model (auto-downloaded)
+
+Detection Logic (Three States)
+------------------------------
+Both face detection and helmet detection run INDEPENDENTLY on each frame.
+Decision priority:
+
+  Helmet detected?  |  Face detected?  |  Status              | Color
+  ------------------+------------------+----------------------+--------
+  YES               |  YES or NO       |  HELMET DETECTED     | GREEN
+  NO                |  YES             |  NO HELMET DETECTED  | RED
+  NO                |  NO              |  NO PERSON DETECTED  | YELLOW
+
+Key design decision: Helmet detection is NOT gated on face detection.
+If a helmet is visible, it implies a person is wearing it (green),
+even if the face is partially hidden by the helmet.
+
+Script Details
+--------------
+Script: helmet_webcam_test.py
+Location: Smart_PPE_Monitoring/ai/PPE_Helmet_Detection/
+Run command: cd Smart_PPE_Monitoring\ai\PPE_Helmet_Detection
+             python helmet_webcam_test.py
+Window: Resizable (cv2.WINDOW_NORMAL), default 960x540, scales on maximize
+Webcam: 1280x720 capture, 320px inference
+Frame skip: Every 2nd frame (SKIP_FRAMES=2), cached results shown between
+Quit: Press 'q' in the webcam window
+
+Live Webcam Test Results (Physical Helmet)
+------------------------------------------
+Webcam opens:              PASSED
+Face detection works:      PASSED (frontal alt2 + profile cascade)
+Helmet detection works:    PASSED (detected physical safety helmet)
+Three-state logic works:   PASSED
+
+Test 1: No person in frame
+  Result: "NO PERSON DETECTED" (yellow) — CORRECT
+  Notes:  No false positives on background objects or furniture
+
+Test 2: Person in frame WITHOUT helmet
+  Result: "NO HELMET DETECTED" (red) — CORRECT
+  Notes:  Face detected (blue bounding box), no helmet detected
+
+Test 3: Person in frame WITH helmet on head
+  Result: "HELMET DETECTED (1)" (green) — CORRECT
+  Notes:  Helmet bounding box (green), confidence ~0.45-0.70
+
+Test 4: Person walks away
+  Result: Transitions back to "NO PERSON DETECTED" (yellow) — CORRECT
+
+Performance on CPU
+------------------
+Version history (all on same laptop, same conditions):
+
+  Version                              | Avg FPS | Notes
+  -------------------------------------+---------+---------------------------
+  v1: Helmet only, 640px               |  1.2    | Too slow, unusable
+  v2: Helmet only, 320px + skip frames |  8.5    | Usable but no person logic
+  v3: + yolov8n person detection       | 11.8    | False positives on clothes
+  v4: + Haar cascade (strict)          | 26.3    | Face rarely detected
+  v5: + Haar alt2+profile+CLAHE (FINAL)|  4.7    | All 3 states work correctly
+
+Final version: ~4.7 FPS average on CPU
+  - Acceptable for real-time PPE compliance checking
+  - Most processing time spent on helmet model inference
+  - Face detection (Haar cascade) adds minimal overhead
+
+Known Issues & Limitations
+--------------------------
+1. FPS is ~4.7 on CPU. Acceptable for single-person compliance check,
+   but may struggle with multiple people or rapid movement.
+2. Helmet model detects hard-hat OBJECTS, not "person wearing helmet."
+   We infer compliance by: helmet visible = someone is wearing it.
+3. Face detection may miss faces in very dark lighting, extreme angles,
+   or if face is heavily obscured. The profile cascade helps with side faces.
+4. The model was trained on industrial hard hats. It may not reliably
+   detect other helmet types (bike helmets, caps, etc.).
+5. No person-helmet spatial association — if two people are in frame,
+   the system cannot determine WHO is wearing the helmet.
+6. Original repo was built for Python 3.11 + CUDA (GPU).
+   Running on Python 3.13 + CPU works but is slower.
+
+Hardware Integration Notes (for ESP32)
+--------------------------------------
+The detection script outputs one of three statuses per frame:
+  - "HELMET DETECTED"     → Worker is PPE compliant
+  - "NO HELMET DETECTED"  → Worker is NOT compliant (trigger buzzer)
+  - "NO PERSON DETECTED"  → No worker in front of camera (wait)
+
+Planned integration flow:
+  RFID scan → ESP32 sends worker ID via HTTP → Laptop runs webcam check
+  → Detection result sent back to ESP32 → OLED displays status
+  → Buzzer alerts if non-compliant → Log to Firebase → Streamlit dashboard
+
+For hardware design, the ESP32 needs to handle three HTTP response states:
+  1. "helmet_on"      → Show green on OLED, no buzzer, allow entry
+  2. "helmet_off"     → Show red on OLED, buzzer alert, deny entry
+  3. "no_person"      → Show yellow/waiting on OLED, prompt worker to stand in front
+
+The detection takes ~200ms per inference cycle on CPU.
+After RFID scan, the laptop can capture 3-5 frames and use majority
+voting to decide the final status before responding to the ESP32.
+
+Files in PPE_Helmet_Detection/
+------------------------------
+  helmet_webcam_test.py      — Main detection script (face + helmet)
+  requirements-notes.txt     — Environment and dependency notes
+  test_results.txt           — This file
+  models/
+    last_hardhat_200_epochs.pt  — Custom YOLOv8 helmet model (130.4 MB)
+    yolov8x.pt                  — COCO person model (130.5 MB, future use)
